@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="es">
 
@@ -5,7 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Gym Rest Timer</title>
+    <title>TimerGym</title>
 
     <style>
 
@@ -144,6 +145,8 @@
             justify-content: center;
 
             cursor: pointer;
+
+            -webkit-tap-highlight-color: transparent;
         }
 
 
@@ -165,7 +168,7 @@
 
 
         /* =========================
-           BOTONES PRINCIPALES
+           BOTON PRINCIPAL
         ========================= */
 
         button {
@@ -188,21 +191,21 @@
         }
 
 
-        /* =========================
-           BOTON PRINCIPAL
-        ========================= */
-
         #mainButton {
             background: #d93636;
             color: white;
         }
 
 
+        /* CORRIENDO */
+
         #mainButton.running {
             background: #35d07f;
             color: #111;
         }
 
+
+        /* PAUSADO */
 
         #mainButton.paused {
             background: #e0a52b;
@@ -211,7 +214,7 @@
 
 
         /* =========================
-           REINICIAR
+           RESET
         ========================= */
 
         #reset {
@@ -220,17 +223,28 @@
         }
 
 
-        /* =========================
-           OCULTO
-        ========================= */
-
         .hidden {
             display: none;
         }
 
 
         /* =========================
-           FLASH
+           WAKE LOCK INDICADOR
+        ========================= */
+
+        #wakeStatus {
+            margin-top: 12px;
+
+            font-size: 11px;
+
+            letter-spacing: 1px;
+
+            opacity: 0.45;
+        }
+
+
+        /* =========================
+           ALERTA FLASH
         ========================= */
 
         body.flash {
@@ -296,7 +310,10 @@
 
         <h1>DESCANSO</h1>
 
-        <div id="timer">01:30</div>
+
+        <div id="timer">
+            01:30
+        </div>
 
 
         <div class="energy">
@@ -304,27 +321,53 @@
         </div>
 
 
+        <!-- AJUSTE DE TIEMPO -->
+
         <div class="adjust-controls">
 
-            <button id="remove30" class="adjust">
+            <button
+                id="remove30"
+                class="adjust"
+                aria-label="Restar 30 segundos">
+
                 −30
+
             </button>
 
-            <button id="add30" class="adjust">
+
+            <button
+                id="add30"
+                class="adjust"
+                aria-label="Agregar 30 segundos">
+
                 +30
+
             </button>
 
         </div>
 
+
+        <!-- BOTON PRINCIPAL -->
 
         <button id="mainButton">
             INICIAR
         </button>
 
 
-        <button id="reset" class="hidden">
+        <!-- REINICIAR -->
+
+        <button
+            id="reset"
+            class="hidden">
+
             REINICIAR
+
         </button>
+
+
+        <!-- ESTADO WAKE LOCK -->
+
+        <div id="wakeStatus"></div>
 
     </div>
 
@@ -332,7 +375,16 @@
 
     <script>
 
+        /* =========================
+           CONFIGURACION
+        ========================= */
+
         const DURACION = 90;
+
+
+        /* =========================
+           ESTADO
+        ========================= */
 
         let segundos = DURACION;
 
@@ -340,6 +392,12 @@
 
         let estado = "ready";
 
+        let wakeLock = null;
+
+
+        /* =========================
+           ELEMENTOS
+        ========================= */
 
         const timer =
             document.getElementById("timer");
@@ -359,9 +417,12 @@
         const energyBar =
             document.getElementById("energyBar");
 
+        const wakeStatus =
+            document.getElementById("wakeStatus");
+
 
         /* =========================
-           PANTALLA
+           ACTUALIZAR PANTALLA
         ========================= */
 
         function actualizarPantalla() {
@@ -379,6 +440,11 @@
                 String(segundosRestantes).padStart(2, "0");
 
 
+            /*
+                La barra representa el progreso
+                respecto de los 90 segundos iniciales.
+            */
+
             const progreso =
                 Math.min(
                     ((DURACION - segundos) / DURACION) * 100,
@@ -393,7 +459,7 @@
 
 
         /* =========================
-           BOTON PRINCIPAL
+           ACTUALIZAR BOTON
         ========================= */
 
         function actualizarBoton() {
@@ -404,14 +470,16 @@
 
             if (estado === "ready") {
 
-                mainButton.textContent = "INICIAR";
+                mainButton.textContent =
+                    "INICIAR";
 
             }
 
 
             if (estado === "running") {
 
-                mainButton.textContent = "PAUSAR";
+                mainButton.textContent =
+                    "PAUSAR";
 
                 mainButton.classList.add("running");
 
@@ -420,7 +488,8 @@
 
             if (estado === "paused") {
 
-                mainButton.textContent = "CONTINUAR";
+                mainButton.textContent =
+                    "CONTINUAR";
 
                 mainButton.classList.add("paused");
 
@@ -444,12 +513,17 @@
 
 
         /* =========================
-           ALERTA
+           ALERTA VISUAL
         ========================= */
 
         function activarAlerta() {
 
             document.body.classList.remove("flash");
+
+            /*
+                Fuerza el navegador a reiniciar
+                la animación.
+            */
 
             void document.body.offsetWidth;
 
@@ -466,52 +540,178 @@
 
 
         /* =========================
-           TIMER
+           WAKE LOCK
+        ========================= */
+
+        async function mantenerPantallaEncendida() {
+
+            /*
+                Si el navegador no soporta
+                Screen Wake Lock, simplemente
+                continuamos normalmente.
+            */
+
+            if (!("wakeLock" in navigator)) {
+
+                wakeStatus.textContent =
+                    "";
+
+                return;
+
+            }
+
+
+            try {
+
+                wakeLock =
+                    await navigator.wakeLock.request(
+                        "screen"
+                    );
+
+
+                wakeStatus.textContent =
+                    "● PANTALLA ACTIVA";
+
+
+                /*
+                    Si el sistema libera el Wake Lock,
+                    dejamos la referencia preparada
+                    para recuperarlo al volver a la app.
+                */
+
+                wakeLock.addEventListener(
+                    "release",
+                    function () {
+
+                        wakeStatus.textContent =
+                            "";
+
+                    }
+                );
+
+
+            } catch (error) {
+
+                console.log(
+                    "Wake Lock no disponible:",
+                    error
+                );
+
+                wakeStatus.textContent =
+                    "";
+
+            }
+
+        }
+
+
+        /* =========================
+           LIBERAR WAKE LOCK
+        ========================= */
+
+        async function liberarPantalla() {
+
+            if (wakeLock) {
+
+                try {
+
+                    await wakeLock.release();
+
+                } catch (error) {
+
+                    console.log(error);
+
+                }
+
+                wakeLock = null;
+
+            }
+
+
+            wakeStatus.textContent =
+                "";
+
+        }
+
+
+        /* =========================
+           RECUPERAR WAKE LOCK
+        ========================= */
+
+        document.addEventListener(
+            "visibilitychange",
+            async function () {
+
+                /*
+                    Si volvemos a la app mientras
+                    el timer sigue corriendo,
+                    solicitamos nuevamente Wake Lock.
+                */
+
+                if (
+                    document.visibilityState === "visible" &&
+                    estado === "running"
+                ) {
+
+                    await mantenerPantallaEncendida();
+
+                }
+
+            }
+        );
+
+
+        /* =========================
+           INICIAR TIMER
         ========================= */
 
         function iniciarTimer() {
 
-            intervalo = setInterval(function () {
+            intervalo =
+                setInterval(function () {
 
-                segundos--;
-
-                actualizarPantalla();
-
-
-                if (segundos <= 0) {
-
-                    clearInterval(intervalo);
-
-                    intervalo = null;
-
-                    segundos = 0;
-
-                    estado = "ready";
-
+                    segundos--;
 
                     actualizarPantalla();
 
-                    activarAlerta();
+
+                    /* FIN DEL DESCANSO */
+
+                    if (segundos <= 0) {
+
+                        clearInterval(intervalo);
+
+                        intervalo = null;
+
+                        segundos = 0;
+
+                        estado = "ready";
 
 
-                    mainButton.textContent =
-                        "NUEVO DESCANSO";
+                        actualizarPantalla();
+
+                        actualizarBoton();
+
+                        mostrarReset(false);
 
 
-                    mainButton.classList.remove(
-                        "running"
-                    );
+                        /*
+                            Liberamos la pantalla
+                            al terminar.
+                        */
 
-                    mainButton.classList.remove(
-                        "paused"
-                    );
+                        liberarPantalla();
 
 
-                    mostrarReset(false);
+                        /*
+                            Activamos la alerta.
+                        */
 
-                }
+                        activarAlerta();
 
-            }, 1000);
+                    }
+
+                }, 1000);
 
         }
 
@@ -522,11 +722,20 @@
 
         mainButton.addEventListener(
             "click",
-            function () {
+            async function () {
 
-                /* INICIAR */
+
+                /* =====================
+                   INICIAR
+                ===================== */
 
                 if (estado === "ready") {
+
+                    /*
+                        Si estaba en cero,
+                        comenzamos un nuevo
+                        descanso de 90 segundos.
+                    */
 
                     if (segundos <= 0) {
 
@@ -539,17 +748,29 @@
 
                     estado = "running";
 
+
                     actualizarBoton();
 
                     mostrarReset(false);
 
+
+                    /*
+                        Activamos Wake Lock.
+                    */
+
+                    await mantenerPantallaEncendida();
+
+
                     iniciarTimer();
 
                     return;
+
                 }
 
 
-                /* PAUSAR */
+                /* =====================
+                   PAUSAR
+                ===================== */
 
                 if (estado === "running") {
 
@@ -559,27 +780,49 @@
 
                     estado = "paused";
 
+
                     actualizarBoton();
 
                     mostrarReset(true);
 
+
+                    /*
+                        Al pausar ya no necesitamos
+                        mantener la pantalla encendida.
+                    */
+
+                    await liberarPantalla();
+
                     return;
+
                 }
 
 
-                /* CONTINUAR */
+                /* =====================
+                   CONTINUAR
+                ===================== */
 
                 if (estado === "paused") {
 
                     estado = "running";
 
+
                     actualizarBoton();
 
                     mostrarReset(false);
 
+
+                    /*
+                        Volvemos a activar Wake Lock.
+                    */
+
+                    await mantenerPantallaEncendida();
+
+
                     iniciarTimer();
 
                     return;
+
                 }
 
             }
@@ -587,7 +830,7 @@
 
 
         /* =========================
-           +30
+           +30 SEGUNDOS
         ========================= */
 
         add30.addEventListener(
@@ -603,18 +846,28 @@
 
 
         /* =========================
-           -30
+           -30 SEGUNDOS
         ========================= */
 
         remove30.addEventListener(
             "click",
-            function () {
+            async function () {
 
                 segundos =
-                    Math.max(0, segundos - 30);
+                    Math.max(
+                        0,
+                        segundos - 30
+                    );
+
 
                 actualizarPantalla();
 
+
+                /*
+                    Si llega a cero mientras
+                    está corriendo, terminamos
+                    inmediatamente.
+                */
 
                 if (
                     segundos === 0 &&
@@ -627,20 +880,16 @@
 
                     estado = "ready";
 
-                    activarAlerta();
 
-                    mainButton.textContent =
-                        "NUEVO DESCANSO";
+                    await liberarPantalla();
 
-                    mainButton.classList.remove(
-                        "running"
-                    );
 
-                    mainButton.classList.remove(
-                        "paused"
-                    );
+                    actualizarBoton();
 
                     mostrarReset(false);
+
+
+                    activarAlerta();
 
                 }
 
@@ -654,11 +903,15 @@
 
         reset.addEventListener(
             "click",
-            function () {
+            async function () {
 
                 clearInterval(intervalo);
 
                 intervalo = null;
+
+
+                await liberarPantalla();
+
 
                 segundos = DURACION;
 
@@ -690,4 +943,4 @@
 </body>
 
 </html>
-
+```
