@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Gym Rest Timer</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+
+            width: 100%;
+            min-height: 100%;
+
+            font-family: Arial, sans-serif;
+
+            background: #111;
+            color: white;
+        }
+
+
+        /* =========================
+           APP
+        ========================= */
+
+        .app {
+            width: 100%;
+            max-width: 420px;
+
+            min-height: 100vh;
+
+            margin: 0 auto;
+
+            display: flex;
+            flex-direction: column;
+
+            align-items: center;
+            justify-content: center;
+
+            padding: 24px 20px;
+        }
+
+
+        /* =========================
+           TITULO
+        ========================= */
+
+        h1 {
+            margin: 0 0 28px;
+
+            font-size: 18px;
+            letter-spacing: 4px;
+        }
+
+
+        /* =========================
+           TIMER
+        ========================= */
+
+        #timer {
+            font-size: clamp(64px, 22vw, 96px);
+
+            font-weight: bold;
+
+            letter-spacing: 1px;
+
+            margin: 0 0 24px;
+
+            line-height: 1;
+        }
+
+
+        /* =========================
+           BARRA DE ENERGIA
+        ========================= */
+
+        .energy {
+            width: 100%;
+            max-width: 300px;
+
+            height: 6px;
+
+            background: #292929;
+
+            border-radius: 10px;
+
+            overflow: hidden;
+
+            margin-bottom: 28px;
+        }
+
+
+        #energyBar {
+            width: 0%;
+            height: 100%;
+
+            background: #35d07f;
+
+            transition: width 0.5s linear;
+        }
+
+
+        /* =========================
+           CONTROLES +30 / -30
+        ========================= */
+
+        .adjust-controls {
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            gap: 18px;
+
+            margin-bottom: 22px;
+        }
+
+
+        .adjust {
+            width: 58px;
+            height: 58px;
+
+            padding: 0;
+            margin: 0;
+
+            border-radius: 50%;
+
+            background: transparent;
+
+            font-size: 17px;
+            font-weight: bold;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            cursor: pointer;
+        }
+
+
+        #add30 {
+            border: 2px solid #35d07f;
+            color: #35d07f;
+        }
+
+
+        #remove30 {
+            border: 2px solid #d93636;
+            color: #d93636;
+        }
+
+
+        .adjust:active {
+            transform: scale(0.94);
+        }
+
+
+        /* =========================
+           BOTONES PRINCIPALES
+        ========================= */
+
+        button {
+            width: 100%;
+            max-width: 300px;
+
+            padding: 16px;
+
+            margin: 5px;
+
+            border: none;
+            border-radius: 13px;
+
+            font-size: 17px;
+            font-weight: bold;
+
+            cursor: pointer;
+
+            -webkit-tap-highlight-color: transparent;
+        }
+
+
+        /* =========================
+           BOTON PRINCIPAL
+        ========================= */
+
+        #mainButton {
+            background: #d93636;
+            color: white;
+        }
+
+
+        #mainButton.running {
+            background: #35d07f;
+            color: #111;
+        }
+
+
+        #mainButton.paused {
+            background: #e0a52b;
+            color: #111;
+        }
+
+
+        /* =========================
+           REINICIAR
+        ========================= */
+
+        #reset {
+            background: #292929;
+            color: white;
+        }
+
+
+        /* =========================
+           OCULTO
+        ========================= */
+
+        .hidden {
+            display: none;
+        }
+
+
+        /* =========================
+           FLASH
+        ========================= */
+
+        body.flash {
+            animation: flashScreen 0.18s linear 6;
+        }
+
+
+        @keyframes flashScreen {
+
+            0% {
+                background: #111;
+            }
+
+            50% {
+                background: white;
+            }
+
+            100% {
+                background: #111;
+            }
+
+        }
+
+
+        /* =========================
+           CELULARES PEQUEÑOS
+        ========================= */
+
+        @media (max-height: 650px) {
+
+            .app {
+                justify-content: flex-start;
+
+                padding-top: 30px;
+            }
+
+            h1 {
+                margin-bottom: 20px;
+            }
+
+            #timer {
+                margin-bottom: 18px;
+            }
+
+            .energy {
+                margin-bottom: 20px;
+            }
+
+            .adjust-controls {
+                margin-bottom: 16px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <div class="app">
+
+        <h1>DESCANSO</h1>
+
+        <div id="timer">01:30</div>
+
+
+        <div class="energy">
+            <div id="energyBar"></div>
+        </div>
+
+
+        <div class="adjust-controls">
+
+            <button id="remove30" class="adjust">
+                −30
+            </button>
+
+            <button id="add30" class="adjust">
+                +30
+            </button>
+
+        </div>
+
+
+        <button id="mainButton">
+            INICIAR
+        </button>
+
+
+        <button id="reset" class="hidden">
+            REINICIAR
+        </button>
+
+    </div>
+
+
+
+    <script>
+
+        const DURACION = 90;
+
+        let segundos = DURACION;
+
+        let intervalo = null;
+
+        let estado = "ready";
+
+
+        const timer =
+            document.getElementById("timer");
+
+        const mainButton =
+            document.getElementById("mainButton");
+
+        const reset =
+            document.getElementById("reset");
+
+        const add30 =
+            document.getElementById("add30");
+
+        const remove30 =
+            document.getElementById("remove30");
+
+        const energyBar =
+            document.getElementById("energyBar");
+
+
+        /* =========================
+           PANTALLA
+        ========================= */
+
+        function actualizarPantalla() {
+
+            const minutos =
+                Math.floor(segundos / 60);
+
+            const segundosRestantes =
+                segundos % 60;
+
+
+            timer.textContent =
+                String(minutos).padStart(2, "0") +
+                ":" +
+                String(segundosRestantes).padStart(2, "0");
+
+
+            const progreso =
+                Math.min(
+                    ((DURACION - segundos) / DURACION) * 100,
+                    100
+                );
+
+
+            energyBar.style.width =
+                progreso + "%";
+
+        }
+
+
+        /* =========================
+           BOTON PRINCIPAL
+        ========================= */
+
+        function actualizarBoton() {
+
+            mainButton.classList.remove("running");
+            mainButton.classList.remove("paused");
+
+
+            if (estado === "ready") {
+
+                mainButton.textContent = "INICIAR";
+
+            }
+
+
+            if (estado === "running") {
+
+                mainButton.textContent = "PAUSAR";
+
+                mainButton.classList.add("running");
+
+            }
+
+
+            if (estado === "paused") {
+
+                mainButton.textContent = "CONTINUAR";
+
+                mainButton.classList.add("paused");
+
+            }
+
+        }
+
+
+        /* =========================
+           RESET
+        ========================= */
+
+        function mostrarReset(mostrar) {
+
+            reset.classList.toggle(
+                "hidden",
+                !mostrar
+            );
+
+        }
+
+
+        /* =========================
+           ALERTA
+        ========================= */
+
+        function activarAlerta() {
+
+            document.body.classList.remove("flash");
+
+            void document.body.offsetWidth;
+
+            document.body.classList.add("flash");
+
+
+            setTimeout(function () {
+
+                document.body.classList.remove("flash");
+
+            }, 1100);
+
+        }
+
+
+        /* =========================
+           TIMER
+        ========================= */
+
+        function iniciarTimer() {
+
+            intervalo = setInterval(function () {
+
+                segundos--;
+
+                actualizarPantalla();
+
+
+                if (segundos <= 0) {
+
+                    clearInterval(intervalo);
+
+                    intervalo = null;
+
+                    segundos = 0;
+
+                    estado = "ready";
+
+
+                    actualizarPantalla();
+
+                    activarAlerta();
+
+
+                    mainButton.textContent =
+                        "NUEVO DESCANSO";
+
+
+                    mainButton.classList.remove(
+                        "running"
+                    );
+
+                    mainButton.classList.remove(
+                        "paused"
+                    );
+
+
+                    mostrarReset(false);
+
+                }
+
+            }, 1000);
+
+        }
+
+
+        /* =========================
+           BOTON PRINCIPAL
+        ========================= */
+
+        mainButton.addEventListener(
+            "click",
+            function () {
+
+                /* INICIAR */
+
+                if (estado === "ready") {
+
+                    if (segundos <= 0) {
+
+                        segundos = DURACION;
+
+                        actualizarPantalla();
+
+                    }
+
+
+                    estado = "running";
+
+                    actualizarBoton();
+
+                    mostrarReset(false);
+
+                    iniciarTimer();
+
+                    return;
+                }
+
+
+                /* PAUSAR */
+
+                if (estado === "running") {
+
+                    clearInterval(intervalo);
+
+                    intervalo = null;
+
+                    estado = "paused";
+
+                    actualizarBoton();
+
+                    mostrarReset(true);
+
+                    return;
+                }
+
+
+                /* CONTINUAR */
+
+                if (estado === "paused") {
+
+                    estado = "running";
+
+                    actualizarBoton();
+
+                    mostrarReset(false);
+
+                    iniciarTimer();
+
+                    return;
+                }
+
+            }
+        );
+
+
+        /* =========================
+           +30
+        ========================= */
+
+        add30.addEventListener(
+            "click",
+            function () {
+
+                segundos += 30;
+
+                actualizarPantalla();
+
+            }
+        );
+
+
+        /* =========================
+           -30
+        ========================= */
+
+        remove30.addEventListener(
+            "click",
+            function () {
+
+                segundos =
+                    Math.max(0, segundos - 30);
+
+                actualizarPantalla();
+
+
+                if (
+                    segundos === 0 &&
+                    estado === "running"
+                ) {
+
+                    clearInterval(intervalo);
+
+                    intervalo = null;
+
+                    estado = "ready";
+
+                    activarAlerta();
+
+                    mainButton.textContent =
+                        "NUEVO DESCANSO";
+
+                    mainButton.classList.remove(
+                        "running"
+                    );
+
+                    mainButton.classList.remove(
+                        "paused"
+                    );
+
+                    mostrarReset(false);
+
+                }
+
+            }
+        );
+
+
+        /* =========================
+           REINICIAR
+        ========================= */
+
+        reset.addEventListener(
+            "click",
+            function () {
+
+                clearInterval(intervalo);
+
+                intervalo = null;
+
+                segundos = DURACION;
+
+                estado = "ready";
+
+
+                actualizarPantalla();
+
+                actualizarBoton();
+
+                mostrarReset(false);
+
+            }
+        );
+
+
+        /* =========================
+           INICIALIZAR
+        ========================= */
+
+        actualizarPantalla();
+
+        actualizarBoton();
+
+        mostrarReset(false);
+
+    </script>
+
+</body>
+
+</html>
+
